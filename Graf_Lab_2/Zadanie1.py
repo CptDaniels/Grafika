@@ -26,6 +26,7 @@ srodek= (width // 2, height // 2)
 
 def draw_polygon(surface):
     a = []
+    #Wybrana bryla 17
     for i in range(17):
         angle = 2 * math.pi * i / 15
         x = srodek[0] + int(r * math.cos(angle))
