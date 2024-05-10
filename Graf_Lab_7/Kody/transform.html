@@ -108,8 +108,8 @@ function draw() {
         drawModel(teapot);
         break;
     case 6:
-        glScalef(0.06, 0.06, 0.06);
-        drawModel(pyramid);
+        glScalef(1, 1, 1);
+        drawPyramid();
         break;
     }
 }
@@ -212,89 +212,29 @@ function doReset() {
     camera.lookAt(10,7,20);
     draw();
 }
-function drawPyramid(baseWidth, height, segments) {
-    baseWidth = baseWidth || 1;
-    height = height || 1;
-    segments = segments || 17;
 
-    var halfWidth = baseWidth / 2;
-    var angleIncrement = (2 * Math.PI) / segments;
-    var coords = [];
-    var normals = [];
-    var texCoords = [];
-    var indices = [];
+function drawPyramid() {
+  const t = Math.sqrt(3) / 4;
 
-    function face(xyz, nrm, tex) {
-        var start = coords.length / 3;
-        for (var i = 0; i < 9; i++) {
-            coords.push(xyz[i]);
-        }
-        for (var i = 0; i < 3; i++) {
-            normals.push(nrm[0], nrm[1], nrm[2]);
-        }
-        for (var i = 0; i < 6; i++) {
-            texCoords.push(tex[i]);
-        }
+  // Pentagonal base
+  glBegin(GL_TRIANGLE_FAN);
+  glNormal3d(0, 2, 0);
+  glTexCoord2d(0.5, 0);
+  glColor3f(1, 0, 0);
+  glVertex3d(0, 0, 0);
+  for (let i = 0; i < 7; i++) {
+    const angle = (2 * Math.PI / 6) * i;
+    glTexCoord2d(
+      Math.cos(angle) * (0.5 + 1 / 5) + 0.5,
+      Math.sin(angle) * (0.5 + 1 / 5) + 0.5
+    );
+    glVertex3d(t * Math.cos(angle), t * Math.sin(angle), -t);
+  }
 
-        indices.push(start, start + 1, start + 2);
-    }
-
-    // Base face
-    var baseCoords = [];
-    for (var i = 0; i < segments; i++) {
-        var tex = [
-            0.5 + 0.5 * Math.cos(i * angleIncrement), 0.5 + 0.5 * Math.sin(i * angleIncrement),
-            0.5 + 0.5 * Math.cos((i + 1) * angleIncrement), 0.5 + 0.5 * Math.sin((i + 1) * angleIncrement),
-            0.5, 0.5 // Center vertex
-        ];
-        face(
-            [0, -height / 2, 0, baseCoords[i * 3], -height / 2, baseCoords[i * 3 + 2], baseCoords[(i + 1) * 3], -height / 2, baseCoords[(i + 1) * 3 + 2]],
-            [0, -1, 0],
-            tex
-        );
-    }
-
-    // Side faces
-    for (var i = 0; i < segments; i++) {
-        var x1 = halfWidth * Math.cos(i * angleIncrement);
-        var z1 = halfWidth * Math.sin(i * angleIncrement);
-        var x2 = halfWidth * Math.cos((i + 1) * angleIncrement);
-        var z2 = halfWidth * Math.sin((i + 1) * angleIncrement);
-
-        var tex = [
-            0, 0,
-            1, 0,
-            1, 1,
-            0, 1
-        ];
-
-        face(
-            [x1, -height / 2, z1, 0, height / 2, 0, x2, -height / 2, z2],
-            calculateNormal([x1, -height / 2, z1], [0, height / 2, 0], [x2, -height / 2, z2]),
-            tex
-        );
-    }
-
-    return {
-        vertexPositions: new Float32Array(coords),
-        vertexNormals: new Float32Array(normals),
-        vertexTextureCoords: new Float32Array(texCoords),
-        indices: new Uint16Array(indices)
-    };
+  glEnd();
 }
 
 
-function calculateNormal(a, b, c) {
-    var u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    var v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    var cross = [
-        u[1] * v[2] - u[2] * v[1],
-        u[2] * v[0] - u[0] * v[2],
-        u[0] * v[1] - u[1] * v[0]
-    ];
-    var length = Math.sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]);
-    return [cross[0] / length, cross[1] / length, cross[2] / length];
-}
 
 
 function init() {
@@ -338,7 +278,7 @@ function init() {
     cone = uvCone();
     torus = uvTorus();
     teapot = teapotModel;
-    pyramid = drawPyramid(16,16,17);  // (This one is just a variable, defined in teapot-model-IFS.js)
+    pyramid = drawPyramid();  // (This one is just a variable, defined in teapot-model-IFS.js)
     sliderRotate.draw();
     sliderScale.draw();
     sliderTranslateX.draw();
