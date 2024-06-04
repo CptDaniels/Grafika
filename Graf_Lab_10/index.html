@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Squares</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="webgl-canvas"></canvas>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec2 a_position;
+        attribute vec3 a_color;
+        uniform vec2 u_resolution;
+        varying vec3 v_color;
+        void main() {
+            vec2 zeroToOne = a_position / u_resolution;
+            vec2 zeroToTwo = zeroToOne * 2.0;
+            vec2 clipSpace = zeroToTwo - 1.0;
+            gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+            gl_PointSize = 10.0;
+            v_color = a_color;
+        }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec3 v_color;
+        uniform int u_shapeStyle;
+        void main() {
+            if (u_shapeStyle == 0) {
+                // Square
+                gl_FragColor = vec4(v_color, 1.0);
+            } else if (u_shapeStyle == 1) {
+                // Disk
+                float dist = distance(vec2(0.5), gl_PointCoord);
+                if (dist > 0.5) {
+                    discard;
+                }
+                gl_FragColor = vec4(v_color, 1.0);
+            } else if (u_shapeStyle == 2) {
+                // Gradient disk
+                float dist = distance(vec2(0.5), gl_PointCoord);
+                if (dist > 0.5) {
+                    discard;
+                }
+                gl_FragColor = vec4(v_color, 1.0 - dist);
+            }
+        }
+    </script>
+    <script>
+        let canvas;
+        let glContext;
+        let shaderProgram;
+        let posBuffer;
+        let colorBuffer;
+        let a_positionLoc;
+        let a_colorLoc;
+        let u_resolutionLoc;
+        let u_shapeStyleLoc;
+        let enableColors = true;
+        let shapeStyle = 0;
+        let squaresArray = [];
+        const totalSquares = 100;
+
+        function initializeGL() {
+            canvas = document.getElementById('webgl-canvas');
+            glContext = canvas.getContext('webgl');
+            const vertexShaderSource = document.getElementById('vertex-shader').text;
+            const fragmentShaderSource = document.getElementById('fragment-shader').text;
+            const vertexShader = createShader(glContext, glContext.VERTEX_SHADER, vertexShaderSource);
+            const fragmentShader = createShader(glContext, glContext.FRAGMENT_SHADER, fragmentShaderSource);
+            shaderProgram = createProgram(glContext, vertexShader, fragmentShader);
+
+            a_positionLoc = glContext.getAttribLocation(shaderProgram, 'a_position');
+            a_colorLoc = glContext.getAttribLocation(shaderProgram, 'a_color');
+            u_resolutionLoc = glContext.getUniformLocation(shaderProgram, 'u_resolution');
+            u_shapeStyleLoc = glContext.getUniformLocation(shaderProgram, 'u_shapeStyle');
+
+            posBuffer = glContext.createBuffer();
+            colorBuffer = glContext.createBuffer();
+
+            glContext.bindBuffer(glContext.ARRAY_BUFFER, posBuffer);
+            glContext.bufferData(glContext.ARRAY_BUFFER, new Float32Array(totalSquares * 2), glContext.STATIC_DRAW);
+
+            glContext.bindBuffer(glContext.ARRAY_BUFFER, colorBuffer);
+            const colors = new Float32Array(totalSquares * 3);
+            for (let i = 0; i < colors.length; i++) {
+                colors[i] = Math.random();
+            }
+            glContext.bufferData(glContext.ARRAY_BUFFER, colors, glContext.STATIC_DRAW);
+
+            for (let i = 0; i < totalSquares; i++) {
+                squaresArray.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    dx: (Math.random() - 0.5) * 2,
+                    dy: (Math.random() - 0.5) * 2
+                });
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+            window.addEventListener('keydown', handleKeydown);
+            canvas.addEventListener('mousemove', updateMousePosition);
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mouseup', onMouseUp);
+
+            resizeCanvas();
+            requestAnimationFrame(drawFrame);
+        }
+
+        function createShader(glContext, type, source) {
+            const shader = glContext.createShader(type);
+            glContext.shaderSource(shader, source);
+            glContext.compileShader(shader);
+            const success = glContext.getShaderParameter(shader, glContext.COMPILE_STATUS);
+            if (!success) {
+                console.log(glContext.getShaderInfoLog(shader));
+                glContext.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(glContext, vertexShader, fragmentShader) {
+            const program = glContext.createProgram();
+            glContext.attachShader(program, vertexShader);
+            glContext.attachShader(program, fragmentShader);
+            glContext.linkProgram(program);
+            const success = glContext.getProgramParameter(program, glContext.LINK_STATUS);
+            if (!success) {
+                console.log(glContext.getProgramInfoLog(program));
+                glContext.deleteProgram(program);
+                return null;
+            }
+            return program;
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            glContext.viewport(0, 0, glContext.canvas.width, glContext.canvas.height);
+        }
+
+        function handleKeydown(event) {
+            switch (event.keyCode) {
+                case 32: // Space to pause/resume
+                    if (animationFrame) {
+                        cancelAnimationFrame(animationFrame);
+                        animationFrame = null;
+                    } else {
+                        requestAnimationFrame(drawFrame);
+                    }
+                    break;
+                case 49: // 1 to switch to square style
+                    shapeStyle = 0;
+                    break;
+                case 50: // 2 to switch to disk style
+                    shapeStyle = 1;
+                    break;
+                case 51: // 3 to switch to gradient disk style
+                    shapeStyle = 2;
+                    break;
+                case 67: // C to toggle colors
+                    enableColors = !enableColors;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function updateMousePosition(event) {
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+
+        function onMouseDown(event) {
+            if (event.button === 0) {
+                for (let square of squaresArray) {
+                    square.dx = (mouseX - square.x) * 0.05;
+                    square.dy = (mouseY - square.y) * 0.05;
+                }
+            }
+        }
+
+        function onMouseUp(event) {
+            if (event.button === 0) {
+                for (let square of squaresArray) {
+                    square.dx = (Math.random() - 0.5) * 2;
+                    square.dy = (Math.random() - 0.5) * 2;
+                }
+            }
+        }
+
+        function updateSquares() {
+            for (let square of squaresArray) {
+                square.x += square.dx;
+                square.y += square.dy;
+                if (square.x < 0 || square.x > canvas.width) square.dx = -square.dx;
+                if (square.y < 0 || square.y > canvas.height) square.dy = -square.dy;
+            }
+
+            const positions = new Float32Array(totalSquares * 2);
+            for (let i = 0; i < totalSquares; i++) {
+                positions[i * 2] = squaresArray[i].x;
+                positions[i * 2 + 1] = squaresArray[i].y;
+            }
+
+            glContext.bindBuffer(glContext.ARRAY_BUFFER, posBuffer);
+            glContext.bufferData(glContext.ARRAY_BUFFER, positions, glContext.DYNAMIC_DRAW);
+        }
+
+        function drawFrame() {
+            updateSquares();
+            glContext.clear(glContext.COLOR_BUFFER_BIT);
+            glContext.useProgram(shaderProgram);
+            glContext.enableVertexAttribArray(a_positionLoc);
+            glContext.bindBuffer(glContext.ARRAY_BUFFER, posBuffer);
+            glContext.vertexAttribPointer(a_positionLoc, 2, glContext.FLOAT, false, 0, 0);
+
+            if (enableColors) {
+                glContext.enableVertexAttribArray(a_colorLoc);
+                glContext.bindBuffer(glContext.ARRAY_BUFFER, colorBuffer);
+                glContext.vertexAttribPointer(a_colorLoc, 3, glContext.FLOAT, false, 0, 0);
+            } else {
+                glContext.disableVertexAttribArray(a_colorLoc);
+                glContext.vertexAttrib3f(a_colorLoc, 1.0, 0.0, 0.0);
+            }
+
+            glContext.uniform2f(u_resolutionLoc, canvas.width, canvas.height);
+            glContext.uniform1i(u_shapeStyleLoc, shapeStyle);
+            glContext.drawArrays(glContext.POINTS, 0, totalSquares);
+            animationFrame = requestAnimationFrame(drawFrame);
+        }
+
+        let animationFrame = null;
+        initializeGL();
+    </script>
+</body>
+
+</html>
